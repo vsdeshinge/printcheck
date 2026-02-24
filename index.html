@@ -1,0 +1,642 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dummy POS - Receipt Print (Electron)</title>
+  <style>
+    :root{
+      --paper-width: 80mm; /* 58mm or 80mm */
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background: #f3f4f6;
+      color: #111827;
+    }
+
+    .app {
+      max-width: 1100px;
+      margin: 20px auto;
+      padding: 16px;
+      display: grid;
+      grid-template-columns: 1.2fr 0.8fr;
+      gap: 16px;
+    }
+
+    .card {
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      box-shadow: 0 1px 10px rgba(0,0,0,0.04);
+      overflow: hidden;
+    }
+
+    .card header {
+      padding: 12px 14px;
+      border-bottom: 1px solid #e5e7eb;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .card header h2 {
+      font-size: 14px;
+      margin: 0;
+      font-weight: 650;
+      letter-spacing: 0.2px;
+    }
+
+    .card .content { padding: 14px; }
+
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 110px 110px 120px;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    label {
+      display: block;
+      font-size: 12px;
+      color: #374151;
+      margin-bottom: 6px;
+    }
+
+    input {
+      width: 100%;
+      padding: 10px 10px;
+      border: 1px solid #d1d5db;
+      border-radius: 10px;
+      outline: none;
+      font-size: 14px;
+      background: #fff;
+    }
+    input:focus {
+      border-color: #2563eb;
+      box-shadow: 0 0 0 4px rgba(37,99,235,0.12);
+    }
+
+    .btns {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+
+    button {
+      border: 1px solid #d1d5db;
+      background: #fff;
+      padding: 10px 12px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 14px;
+    }
+    button.primary {
+      background: #111827;
+      color: #fff;
+      border-color: #111827;
+    }
+    button.danger {
+      background: #fee2e2;
+      border-color: #fecaca;
+      color: #991b1b;
+    }
+    button:active { transform: translateY(1px); }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      font-size: 13px;
+    }
+    th, td {
+      border-bottom: 1px solid #e5e7eb;
+      padding: 10px 6px;
+      text-align: left;
+      vertical-align: middle;
+    }
+    th { font-size: 12px; color: #374151; }
+    td.num, th.num { text-align: right; }
+
+    .muted { color: #6b7280; font-size: 12px; }
+    .right { text-align: right; }
+    .split {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    /* Receipt preview block */
+    .receipt-wrap {
+      display: grid;
+      place-items: start center;
+      padding: 14px;
+      background: repeating-linear-gradient(
+        45deg,
+        #f9fafb,
+        #f9fafb 10px,
+        #f3f4f6 10px,
+        #f3f4f6 20px
+      );
+    }
+
+    .receipt {
+      width: var(--paper-width);
+      background: #fff;
+      border: 1px dashed #d1d5db;
+      border-radius: 10px;
+      padding: 10px 10px 14px;
+      font-family: var(--mono);
+      font-size: 12px;
+      line-height: 1.25;
+      color: #111;
+    }
+
+    .r-center { text-align: center; }
+    .r-bold { font-weight: 800; }
+    .r-small { font-size: 11px; }
+    .r-line { border-top: 1px dashed #111; margin: 8px 0; }
+    .r-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      align-items: baseline;
+    }
+    .r-kv { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .r-kv div:nth-child(2n) { text-align: right; }
+
+    .r-items {
+      width: 100%;
+      margin-top: 6px;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    .r-items th, .r-items td { border: none; padding: 3px 0; }
+    .r-items th { font-weight: 800; }
+    .r-items td.num, .r-items th.num { text-align: right; }
+
+    .r-foot { margin-top: 10px; }
+    .pill {
+      display: inline-block;
+      padding: 2px 6px;
+      border: 1px solid #111;
+      border-radius: 999px;
+      font-size: 11px;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+
+    <!-- LEFT: POS INPUT -->
+    <section class="card">
+      <header>
+        <h2>Dummy POS (Electron) – Build Receipt</h2>
+        <div class="muted">Print = HTML → PDF → lp (80mm)</div>
+      </header>
+
+      <div class="content">
+        <div class="row">
+          <div>
+            <label>Item Name</label>
+            <input id="itemName" placeholder="e.g., HARPIC 500ML" />
+          </div>
+          <div>
+            <label>Qty</label>
+            <input id="itemQty" type="number" min="1" step="1" value="1" />
+          </div>
+          <div>
+            <label>Rate</label>
+            <input id="itemRate" type="number" min="0" step="0.01" placeholder="104" />
+          </div>
+          <div>
+            <label>&nbsp;</label>
+            <button class="primary" id="addBtn">Add Item</button>
+          </div>
+        </div>
+
+        <div class="split">
+          <div>
+            <label>Shop Name</label>
+            <input id="shopName" value="AVVA SUPER BAZAR" />
+          </div>
+          <div>
+            <label>Phone / Contact</label>
+            <input id="shopPhone" value="7848921416" />
+          </div>
+          <div>
+            <label>Address (Line 1)</label>
+            <input id="shopAddr1" value="Daval Malik Road, Near Old Post Office" />
+          </div>
+          <div>
+            <label>Address (Line 2)</label>
+            <input id="shopAddr2" value="Anantpur" />
+          </div>
+          <div>
+            <label>GST No (optional)</label>
+            <input id="shopGst" value="29DXAPP5437A1ZJ" />
+          </div>
+          <div>
+            <label>Bill No</label>
+            <input id="billNo" value="523" />
+          </div>
+
+          <div style="grid-column: 1 / -1;">
+            <label>Logo (optional)</label>
+            <input id="logoFile" type="file" accept="image/*" />
+            <div class="muted" style="margin-top:6px;">Logo is stored locally in this app (localStorage).</div>
+          </div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th class="num">Qty</th>
+              <th class="num">Rate</th>
+              <th class="num">Amount</th>
+              <th class="right">Action</th>
+            </tr>
+          </thead>
+          <tbody id="itemsTbody"></tbody>
+        </table>
+
+        <div class="split" style="margin-top: 14px;">
+          <div>
+            <label>Discount (₹)</label>
+            <input id="discount" type="number" min="0" step="0.01" value="0" />
+          </div>
+          <div>
+            <label>Tax % (GST)</label>
+            <input id="taxPercent" type="number" min="0" step="0.01" value="0" />
+          </div>
+        </div>
+
+        <div class="btns">
+          <button id="resetBtn" class="danger">Clear All</button>
+          <button id="demoBtn">Load Demo Items</button>
+          <button id="printBtn" class="primary">Print Receipt</button>
+        </div>
+
+        <p class="muted" style="margin-top: 10px;">
+          If Print does nothing: DevTools Console will show whether <b>window.posAPI</b> exists.
+        </p>
+      </div>
+    </section>
+
+    <!-- RIGHT: RECEIPT PREVIEW -->
+    <section class="card">
+      <header>
+        <h2>Receipt Preview (80mm)</h2>
+        <div class="muted">This layout is printed</div>
+      </header>
+
+      <div class="receipt-wrap">
+        <div class="receipt" id="receipt">
+
+          <div class="r-center" style="margin-bottom:6px;">
+            <img id="logoImg" alt="logo" style="max-width:72mm; max-height:18mm; object-fit:contain; display:none;" />
+          </div>
+
+          <div class="r-center r-bold" id="rShopName">AVVA SUPER BAZAR</div>
+          <div class="r-center r-small" id="rAddr1">Daval Malik Road, Near Old Post Office</div>
+          <div class="r-center r-small" id="rAddr2">Anantpur</div>
+          <div class="r-center r-small">Contact: <span id="rPhone">7848921416</span></div>
+          <div class="r-center r-small">GST: <span id="rGst">29DXAPP5437A1ZJ</span></div>
+
+          <div class="r-line"></div>
+
+          <div class="r-kv r-small">
+            <div>Bill No:</div><div id="rBillNo">523</div>
+            <div>Date:</div><div id="rDate">--</div>
+          </div>
+
+          <div class="r-line"></div>
+
+          <table class="r-items">
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th class="num">Qty</th>
+                <th class="num">Amt</th>
+              </tr>
+            </thead>
+            <tbody id="rItems"></tbody>
+          </table>
+
+          <div class="r-line"></div>
+
+          <div class="r-row">
+            <div>Subtotal</div>
+            <div class="r-bold">₹ <span id="rSubtotal">0.00</span></div>
+          </div>
+          <div class="r-row">
+            <div>Discount</div>
+            <div>₹ <span id="rDiscount">0.00</span></div>
+          </div>
+          <div class="r-row">
+            <div>Tax</div>
+            <div>₹ <span id="rTax">0.00</span></div>
+          </div>
+
+          <div class="r-line"></div>
+
+          <div class="r-row r-bold" style="font-size: 13px;">
+            <div>GRAND TOTAL</div>
+            <div>₹ <span id="rGrand">0.00</span></div>
+          </div>
+
+          <div class="r-line"></div>
+
+          <div class="r-center r-foot">
+            <div class="pill">THANK YOU</div>
+            <div class="r-small" style="margin-top:6px;">VISIT AGAIN • HAVE A NICE DAY</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+<script>
+  // ---- State
+  const state = { items: [] };
+
+  // ---- Helpers
+  function money(n) {
+    const v = Number(n || 0);
+    return v.toFixed(2);
+  }
+
+  function nowString() {
+    const d = new Date();
+    const pad = (x) => String(x).padStart(2, "0");
+    const dd = pad(d.getDate());
+    const mm = pad(d.getMonth() + 1);
+    const yyyy = d.getFullYear();
+    let hh = d.getHours();
+    const min = pad(d.getMinutes());
+    const ampm = hh >= 12 ? "PM" : "AM";
+    hh = hh % 12; hh = hh ? hh : 12;
+    return `${dd}/${mm}/${yyyy} ${pad(hh)}:${min} ${ampm}`;
+  }
+
+  function calcTotals() {
+    const subtotal = state.items.reduce((sum, it) => sum + (it.qty * it.rate), 0);
+    const discount = Number(document.getElementById("discount").value || 0);
+    const taxPercent = Number(document.getElementById("taxPercent").value || 0);
+
+    const afterDiscount = Math.max(0, subtotal - discount);
+    const tax = afterDiscount * (taxPercent / 100);
+    const grand = afterDiscount + tax;
+
+    return { subtotal, discount, taxPercent, tax, grand };
+  }
+
+  function uid() {
+    return Math.random().toString(16).slice(2) + Date.now().toString(16);
+  }
+
+  function escapeHtml(str) {
+    return String(str ?? "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+
+  // ---- DOM refs
+  const itemName = document.getElementById("itemName");
+  const itemQty  = document.getElementById("itemQty");
+  const itemRate = document.getElementById("itemRate");
+
+  const itemsTbody = document.getElementById("itemsTbody");
+  const rItems = document.getElementById("rItems");
+
+  const shopName = document.getElementById("shopName");
+  const shopPhone = document.getElementById("shopPhone");
+  const shopAddr1 = document.getElementById("shopAddr1");
+  const shopAddr2 = document.getElementById("shopAddr2");
+  const shopGst = document.getElementById("shopGst");
+  const billNo = document.getElementById("billNo");
+
+  const rShopName = document.getElementById("rShopName");
+  const rAddr1 = document.getElementById("rAddr1");
+  const rAddr2 = document.getElementById("rAddr2");
+  const rPhone = document.getElementById("rPhone");
+  const rGst = document.getElementById("rGst");
+  const rBillNo = document.getElementById("rBillNo");
+  const rDate = document.getElementById("rDate");
+
+  const rSubtotal = document.getElementById("rSubtotal");
+  const rDiscount = document.getElementById("rDiscount");
+  const rTax = document.getElementById("rTax");
+  const rGrand = document.getElementById("rGrand");
+
+  const logoFile = document.getElementById("logoFile");
+  const logoImg = document.getElementById("logoImg");
+
+  // ---- Logo persistence
+  (function restoreLogo(){
+    try {
+      const saved = localStorage.getItem("pos_logo_dataurl");
+      if (saved) {
+        logoImg.src = saved;
+        logoImg.style.display = "block";
+      }
+    } catch {}
+  })();
+
+  if (logoFile) {
+    logoFile.addEventListener("change", () => {
+      const file = logoFile.files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        const dataUrl = String(reader.result || "");
+        logoImg.src = dataUrl;
+        logoImg.style.display = "block";
+        try { localStorage.setItem("pos_logo_dataurl", dataUrl); } catch {}
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  // ---- Render
+  function render() {
+    itemsTbody.innerHTML = state.items.map((it) => {
+      const amt = it.qty * it.rate;
+      return `
+        <tr>
+          <td>${escapeHtml(it.name)}</td>
+          <td class="num">${it.qty}</td>
+          <td class="num">${money(it.rate)}</td>
+          <td class="num">${money(amt)}</td>
+          <td class="right">
+            <button data-del="${it.id}" class="danger" style="padding:6px 10px;border-radius:8px;">Remove</button>
+          </td>
+        </tr>
+      `;
+    }).join("");
+
+    rItems.innerHTML = state.items.map((it) => {
+      const amt = it.qty * it.rate;
+      const name = it.name.length > 18 ? it.name.slice(0, 18) + "…" : it.name;
+      return `
+        <tr>
+          <td>${escapeHtml(name)}</td>
+          <td class="num">${it.qty}</td>
+          <td class="num">${money(amt)}</td>
+        </tr>
+      `;
+    }).join("");
+
+    rShopName.textContent = shopName.value || "SHOP";
+    rAddr1.textContent = shopAddr1.value || "";
+    rAddr2.textContent = shopAddr2.value || "";
+    rPhone.textContent = shopPhone.value || "";
+    rGst.textContent = shopGst.value || "";
+    rBillNo.textContent = billNo.value || "-";
+    rDate.textContent = nowString();
+
+    const t = calcTotals();
+    rSubtotal.textContent = money(t.subtotal);
+    rDiscount.textContent = money(t.discount);
+    rTax.textContent = money(t.tax);
+    rGrand.textContent = money(t.grand);
+
+    document.querySelectorAll("[data-del]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const id = btn.getAttribute("data-del");
+        state.items = state.items.filter(x => x.id !== id);
+        render();
+      });
+    });
+  }
+
+  // ---- Events
+  document.getElementById("addBtn").addEventListener("click", () => {
+    const name = (itemName.value || "").trim();
+    const qty = Math.max(1, Number(itemQty.value || 1));
+    const rate = Math.max(0, Number(itemRate.value || 0));
+
+    if (!name) { alert("Enter Item Name"); itemName.focus(); return; }
+    if (!rate) { alert("Enter Rate"); itemRate.focus(); return; }
+
+    state.items.push({ id: uid(), name, qty, rate });
+    itemName.value = "";
+    itemQty.value = 1;
+    itemRate.value = "";
+    itemName.focus();
+    render();
+  });
+
+  [itemName, itemQty, itemRate].forEach(el => {
+    el.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") document.getElementById("addBtn").click();
+    });
+  });
+
+  [
+    shopName, shopPhone, shopAddr1, shopAddr2, shopGst, billNo,
+    document.getElementById("discount"),
+    document.getElementById("taxPercent"),
+  ].forEach(el => el.addEventListener("input", render));
+
+  document.getElementById("resetBtn").addEventListener("click", () => {
+    if (!confirm("Clear all items?")) return;
+    state.items = [];
+    document.getElementById("discount").value = 0;
+    document.getElementById("taxPercent").value = 0;
+    render();
+  });
+
+  document.getElementById("demoBtn").addEventListener("click", () => {
+    state.items = [
+      { id: uid(), name: "HARPIC 500ML", qty: 1, rate: 104.00 },
+      { id: uid(), name: "MOONG DAL 250GM", qty: 1, rate: 29.00 },
+      { id: uid(), name: "RIN BAR", qty: 4, rate: 9.40 },
+    ];
+    document.getElementById("discount").value = 0;
+    document.getElementById("taxPercent").value = 0;
+    render();
+  });
+
+  // PRINT: HTML -> PDF (80mm) -> lp
+  document.getElementById("printBtn").addEventListener("click", async () => {
+    try {
+      console.log("Print clicked. posAPI:", window.posAPI);
+
+      if (state.items.length === 0) {
+        alert("Add at least one item before printing.");
+        return;
+      }
+
+      // update date
+      rDate.textContent = nowString();
+
+      // Only print receipt DOM
+      const receipt = document.getElementById("receipt");
+
+      const html = `
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <style>
+    @page { size: 80mm auto; margin: 0; }
+    html, body { margin: 0; padding: 0; }
+    body { width: 80mm; }
+    /* force consistent receipt style */
+    #receipt {
+      width: 80mm;
+      font-family: ${JSON.stringify(getComputedStyle(document.documentElement).getPropertyValue('--mono').trim() || 'monospace')};
+      font-size: 10px;
+      line-height: 1.2;
+      color: #000;
+      border: 0;
+      border-radius: 0;
+      padding: 0;
+    }
+    .r-line { border-top: 1px dashed #000; margin: 6px 0; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 2px 0; border: 0; }
+    .num { text-align: right; }
+    .r-center { text-align: center; }
+    .r-bold { font-weight: 800; }
+    .r-small { font-size: 9px; }
+    img { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  </style>
+</head>
+<body>
+  ${receipt.outerHTML}
+</body>
+</html>`.trim();
+
+      if (!window.posAPI || typeof window.posAPI.printPdf !== "function") {
+        alert("posAPI.printPdf not found. Check preload.js and contextIsolation.");
+        return;
+      }
+
+      const result = await window.posAPI.printPdf(html);
+      if (!result || !result.ok) {
+        alert("Print failed: " + (result?.error || "Unknown error"));
+      }
+    } catch (e) {
+      alert("Print error: " + (e?.message || e));
+    }
+  });
+
+  render();
+</script>
+</body>
+</html>
