@@ -1,291 +1,89 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>POS Print (Epson TM-T82X) + AutoCut</title>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>POS Receipt</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 16px; }
+    .actions { margin-bottom: 12px; }
+    button { padding: 10px 14px; cursor: pointer; }
 
-    <!-- QZ Tray JS (served locally by QZ Tray on the client machine) -->
-    <script src="http://localhost:8181/qz/tray.js"></script>
+    /* Receipt block */
+    .receipt {
+      width: 80mm;               /* change to 58mm if your printer paper is 58mm */
+      padding: 4mm;
+      border: 1px dashed #999;   /* visible on screen only; print can ignore if needed */
+      background: #fff;
+    }
 
-    <style>
-      body {
-        font-family: system-ui, Arial, sans-serif;
-        padding: 16px;
-        max-width: 720px;
-        margin: 0 auto;
-      }
-      .row { display: flex; gap: 10px; flex-wrap: wrap; }
-      button {
-        padding: 10px 14px;
-        border: 1px solid #ccc;
-        border-radius: 8px;
-        cursor: pointer;
-        background: #fff;
-      }
-      button.primary { border-color: #111; }
-      input, select {
-        padding: 10px;
-        border: 1px solid #ccc;
-        border-radius: 8px;
-        min-width: 260px;
-      }
-      pre {
-        background: #f6f6f6;
-        border: 1px solid #e6e6e6;
-        padding: 12px;
-        border-radius: 8px;
-        overflow: auto;
-      }
-      .hint { color: #666; font-size: 13px; margin-top: 8px; }
-      .ok { color: #0a7b2f; }
-      .bad { color: #b00020; }
-    </style>
-  </head>
+    .center { text-align: center; }
+    .row { display: flex; justify-content: space-between; }
+    .bold { font-weight: 700; }
+    .line { border-top: 1px dashed #000; margin: 6px 0; }
+    .small { font-size: 12px; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 
-  <body>
-    <h2>POS Print (Epson TM-T82X) + AutoCut</h2>
+    /* Print rules */
+    @media print {
+      body { padding: 0; }
+      .actions { display: none; }
+      .receipt {
+        border: none;
+        width: auto;     /* let printer handle */
+        padding: 0;
+      }
+    }
+  </style>
+</head>
+<body>
 
-    <div class="row" style="margin-bottom: 10px">
-      <input id="printerName" placeholder='Printer name (e.g. "EPSON TM-T82X Receipt")' />
-      <button class="primary" onclick="connectQZ()">1) Connect QZ</button>
-      <button onclick="findPrinters()">Find Printers</button>
+  <div class="actions">
+    <button onclick="printReceipt()">Print</button>
+  </div>
+
+  <div class="receipt mono" id="receipt">
+    <div class="center bold">AVVA SUPER BAZAR</div>
+    <div class="center small">Cash Memo</div>
+    <div class="center small">Daval Malik Road, Near Old Post Office</div>
+    <div class="center small">Phone: 7848921416</div>
+
+    <div class="line"></div>
+
+    <div class="small">Bill No: 523</div>
+    <div class="small">Date: 20/01/2026 12:25 PM</div>
+
+    <div class="line"></div>
+
+    <div class="row small bold">
+      <span>ITEM</span><span>QTY</span><span>AMT</span>
     </div>
+    <div class="line"></div>
 
-    <div class="row" style="margin-bottom: 10px">
-      <button class="primary" onclick="printReceipt()">2) Print Receipt + Cut</button>
-      <button onclick="printTestCutOnly()">Cut Only (Test)</button>
-    </div>
+    <div class="row small"><span>HARPIC 500ML</span><span>1</span><span>104</span></div>
+    <div class="row small"><span>Pani Puri 3D 250gm</span><span>1</span><span>30</span></div>
+    <div class="row small"><span>Kaju 250gm</span><span>0.5</span><span>115</span></div>
+    <div class="row small"><span>Badam 250gm</span><span>0.5</span><span>115</span></div>
 
-    <div id="status" class="hint">Status: Not connected</div>
+    <div class="line"></div>
 
-    <h3>Detected Printers</h3>
-    <pre id="printers"></pre>
+    <div class="row bold"><span>TOTAL</span><span></span><span>623</span></div>
+    <div class="row small"><span>MRP Total</span><span></span><span>690</span></div>
+    <div class="row small"><span>Saving</span><span></span><span>67</span></div>
 
-    <h3>Notes</h3>
-    <ul>
-      <li>Install and run <b>QZ Tray</b> on the same Windows laptop (it runs in the tray).</li>
-      <li>Ensure your Epson TM-T82X driver is installed and printer is visible in Windows.</li>
-      <li>Auto-cut is done by sending ESC/POS: <code>GS V 0</code> (full cut) or <code>GS V 1</code> (partial cut).</li>
-    </ul>
+    <div class="line"></div>
 
-    <script>
-      // ---------- Helpers ----------
-      const $ = (id) => document.getElementById(id);
-      const setStatus = (msg, type = "") => {
-        const el = $("status");
-        el.textContent = "Status: " + msg;
-        el.className = "hint " + (type === "ok" ? "ok" : type === "bad" ? "bad" : "");
-      };
+    <div class="center small">THANK YOU... VISIT AGAIN</div>
+    <div class="center small">HAVE A NICE DAY...</div>
 
-      // ESC/POS commands (as raw bytes)
-      const ESC = 0x1B;
-      const GS = 0x1D;
+    <div style="height: 12mm;"></div> <!-- bottom gap so cutter has space -->
+  </div>
 
-      // Full cut: GS V 0
-      const CUT_FULL = [GS, 0x56, 0x00];
-
-      // Partial cut: GS V 1
-      const CUT_PARTIAL = [GS, 0x56, 0x01];
-
-      // Initialize printer (ESC @)
-      const INIT = [ESC, 0x40];
-
-      // Text alignment
-      const ALIGN_LEFT = [ESC, 0x61, 0x00];
-      const ALIGN_CENTER = [ESC, 0x61, 0x01];
-
-      // Bold on/off
-      const BOLD_ON = [ESC, 0x45, 0x01];
-      const BOLD_OFF = [ESC, 0x45, 0x00];
-
-      // Feed n lines: ESC d n
-      const FEED_N = (n) => [ESC, 0x64, n];
-
-      // ---------- QZ Setup ----------
-      async function connectQZ() {
-        try {
-          if (!window.qz) {
-            setStatus("QZ Tray not reachable. Is it running? (http://localhost:8181)", "bad");
-            return;
-          }
-
-          // For production: configure certificate + signature.
-          // For local testing: allow unsigned if QZ is configured to allow it.
-          qz.security.setCertificatePromise(async () => {
-            // If you have a cert, return it here as string.
-            // For demo/testing, we return null and rely on QZ settings.
-            return null;
-          });
-
-          qz.security.setSignaturePromise(async () => {
-            // For demo/testing, return null. For production you MUST sign requests.
-            return null;
-          });
-
-          if (!qz.websocket.isActive()) {
-            await qz.websocket.connect();
-          }
-
-          setStatus("Connected to QZ Tray", "ok");
-        } catch (e) {
-          console.error(e);
-          setStatus("Connect failed: " + (e?.message || e), "bad");
-        }
-      }
-
-      async function findPrinters() {
-        try {
-          if (!qz.websocket.isActive()) {
-            setStatus("Not connected. Click 'Connect QZ' first.", "bad");
-            return;
-          }
-          const list = await qz.printers.find();
-          $("printers").textContent = list.join("\n");
-          setStatus("Printers loaded", "ok");
-        } catch (e) {
-          console.error(e);
-          setStatus("Find printers failed: " + (e?.message || e), "bad");
-        }
-      }
-
-      function getSelectedPrinter() {
-        const name = $("printerName").value?.trim();
-        if (!name) return null;
-        return name;
-      }
-
-      // Create QZ config for raw ESC/POS printing
-      function createConfig(printerName) {
-        // "raw" ensures QZ sends bytes directly to the printer driver
-        // Some environments may need: { copies: 1, spool: { type: "RAW" } }
-        return qz.configs.create(printerName, {
-          copies: 1,
-          encoding: "CP437", // common for ESC/POS text
-          spool: { type: "RAW" },
-        });
-      }
-
-      // ---------- Print Logic ----------
-      async function printReceipt() {
-        try {
-          if (!qz.websocket.isActive()) {
-            setStatus("Not connected. Click 'Connect QZ' first.", "bad");
-            return;
-          }
-
-          const printerName = getSelectedPrinter();
-          if (!printerName) {
-            setStatus('Enter printer name (exactly as in Windows). Click "Find Printers" to copy.', "bad");
-            return;
-          }
-
-          const cfg = createConfig(printerName);
-
-          // Build receipt: mix of bytes + strings is supported by QZ
-          const data = [];
-
-          // Init
-          data.push({ type: "raw", format: "command", data: INIT });
-
-          // Header
-          data.push({ type: "raw", format: "command", data: ALIGN_CENTER });
-          data.push({ type: "raw", format: "command", data: BOLD_ON });
-          data.push("AVVA SUPER BAZAR\n");
-          data.push({ type: "raw", format: "command", data: BOLD_OFF });
-          data.push("Cash Memo\n");
-          data.push("Anantapur\n");
-          data.push("Phone: 7848921416\n");
-          data.push("--------------------------------\n");
-
-          // Bill meta
-          data.push({ type: "raw", format: "command", data: ALIGN_LEFT });
-          data.push("Bill No: 523\n");
-          data.push("Date: 20/01/2026 12:25 PM\n");
-          data.push("--------------------------------\n");
-
-          // Items (monospace-style text)
-          data.push("ITEM                 QTY   AMT\n");
-          data.push("--------------------------------\n");
-          data.push("HARPIC 500ML           1   104\n");
-          data.push("Pani Puri 3D 250gm     1    30\n");
-          data.push("Kaju 250gm           0.5   115\n");
-          data.push("Badam 250gm          0.5   115\n");
-          data.push("Salt 1kg               1    10\n");
-          data.push("Shabudan 500gm         1    30\n");
-          data.push("Masala 10rs            2    20\n");
-          data.push("Moongdal 250gm         1    29\n");
-          data.push("Khaskaha 20gm          1    50\n");
-          data.push("Vim Liquid 15rs        1    15\n");
-          data.push("Tejambari              1    23\n");
-          data.push("Rin Bar 10rs           4  37.6\n");
-          data.push("Coconut Cookies 10rs   1   9.5\n");
-          data.push("Vim 4x2                1  34.5\n");
-          data.push("--------------------------------\n");
-
-          // Total
-          data.push({ type: "raw", format: "command", data: ALIGN_RIGHT_BYTES() });
-          data.push({ type: "raw", format: "command", data: ALIGN_LEFT });
-
-          data.push({ type: "raw", format: "command", data: ALIGN_LEFT });
-          data.push({ type: "raw", format: "command", data: BOLD_ON });
-          data.push("TOTAL:                          623\n");
-          data.push({ type: "raw", format: "command", data: BOLD_OFF });
-          data.push("MRP Total:                      690\n");
-          data.push("Saving:                          67\n");
-          data.push("--------------------------------\n");
-
-          // Footer
-          data.push({ type: "raw", format: "command", data: ALIGN_CENTER });
-          data.push("THANK YOU... VISIT AGAIN\n");
-          data.push("HAVE A NICE DAY...\n");
-
-          // Feed and cut
-          data.push({ type: "raw", format: "command", data: FEED_N(4) });
-          data.push({ type: "raw", format: "command", data: CUT_FULL });
-
-          await qz.print(cfg, data);
-          setStatus("Printed + Cut sent ✅", "ok");
-        } catch (e) {
-          console.error(e);
-          setStatus("Print failed: " + (e?.message || e), "bad");
-        }
-      }
-
-      async function printTestCutOnly() {
-        try {
-          if (!qz.websocket.isActive()) {
-            setStatus("Not connected. Click 'Connect QZ' first.", "bad");
-            return;
-          }
-
-          const printerName = getSelectedPrinter();
-          if (!printerName) {
-            setStatus('Enter printer name (exactly as in Windows).', "bad");
-            return;
-          }
-
-          const cfg = createConfig(printerName);
-
-          const data = [];
-          data.push({ type: "raw", format: "command", data: INIT });
-          data.push({ type: "raw", format: "command", data: FEED_N(2) });
-          data.push("CUT TEST\n");
-          data.push({ type: "raw", format: "command", data: FEED_N(3) });
-          data.push({ type: "raw", format: "command", data: CUT_FULL });
-
-          await qz.print(cfg, data);
-          setStatus("Cut test sent ✅", "ok");
-        } catch (e) {
-          console.error(e);
-          setStatus("Cut test failed: " + (e?.message || e), "bad");
-        }
-      }
-
-      // Alignment right command helper (ESC a 2)
-      function ALIGN_RIGHT_BYTES() {
-        return [ESC, 0x61, 0x02];
-      }
-    </script>
-  </body>
+  <script>
+    function printReceipt() {
+      // Opens system print dialog
+      window.print();
+    }
+  </script>
+</body>
 </html>
