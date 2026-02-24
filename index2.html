@@ -2,88 +2,426 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>POS Receipt</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>POS Receipt (Simple)</title>
   <style>
-    body { font-family: Arial, sans-serif; padding: 16px; }
-    .actions { margin-bottom: 12px; }
-    button { padding: 10px 14px; cursor: pointer; }
-
-    /* Receipt block */
-    .receipt {
-      width: 80mm;               /* change to 58mm if your printer paper is 58mm */
-      padding: 4mm;
-      border: 1px dashed #999;   /* visible on screen only; print can ignore if needed */
-      background: #fff;
+    :root{
+      --paper: 80mm;            /* 80mm or 58mm */
+      --pad: 4mm;
+      --font: 12px;
+      --fontSmall: 11px;
+      --line: 1px dashed #000;
     }
 
-    .center { text-align: center; }
-    .row { display: flex; justify-content: space-between; }
-    .bold { font-weight: 700; }
-    .line { border-top: 1px dashed #000; margin: 6px 0; }
-    .small { font-size: 12px; }
-    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    body{
+      font-family: ui-sans-serif, system-ui, Arial, sans-serif;
+      margin: 0;
+      padding: 16px;
+      background: #fafafa;
+      color: #111;
+    }
 
-    /* Print rules */
-    @media print {
-      body { padding: 0; }
-      .actions { display: none; }
-      .receipt {
+    .wrap{
+      display: grid;
+      grid-template-columns: 420px 1fr;
+      gap: 16px;
+      align-items: start;
+    }
+
+    .panel{
+      background: #fff;
+      border: 1px solid #e5e5e5;
+      border-radius: 12px;
+      padding: 14px;
+    }
+
+    h2{ margin: 0 0 10px; font-size: 16px; }
+    h3{ margin: 14px 0 8px; font-size: 13px; }
+
+    label{ display: block; font-size: 12px; margin: 10px 0 6px; color:#333; }
+    input, textarea, select{
+      width: 100%;
+      box-sizing: border-box;
+      padding: 10px;
+      border: 1px solid #d9d9d9;
+      border-radius: 10px;
+      font-size: 13px;
+      outline: none;
+    }
+    textarea{ min-height: 64px; resize: vertical; }
+
+    .row{
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .btns{ display:flex; gap:10px; flex-wrap: wrap; margin-top: 12px; }
+    button{
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid #ccc;
+      background: #fff;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 13px;
+    }
+    button.primary{ border-color:#111; }
+    button.danger{ border-color:#b00020; color:#b00020; }
+
+    .hint{ font-size: 12px; color:#666; margin-top: 10px; line-height: 1.35; }
+
+    /* Receipt */
+    .receipt-wrap{
+      display: flex;
+      justify-content: center;
+    }
+    .receipt{
+      width: var(--paper);
+      background: #fff;
+      border: 1px dashed #bbb;     /* screen only */
+      padding: var(--pad);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: var(--font);
+      line-height: 1.25;
+      color: #000;
+    }
+    .center{ text-align: center; }
+    .right{ text-align: right; }
+    .bold{ font-weight: 800; }
+    .small{ font-size: var(--fontSmall); }
+    .line{ border-top: var(--line); margin: 6px 0; }
+    .muted{ color:#333; }
+
+    .kv{ display:flex; justify-content: space-between; gap: 12px; }
+    .kv > div{ min-width: 0; }
+    .kv .k{ color:#222; }
+    .kv .v{ color:#000; text-align: right; }
+
+    .table-head, .item-row{
+      display: grid;
+      grid-template-columns: 1fr 40px 58px;
+      gap: 6px;
+      align-items: baseline;
+    }
+    .table-head{
+      font-weight: 800;
+    }
+    .item-name{
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .totals{
+      display: grid;
+      grid-template-columns: 1fr 80px;
+      gap: 6px;
+    }
+
+    .footer-gap{ height: 14mm; } /* gives cutter space */
+
+    /* Print */
+    @media print{
+      body{ background: #fff; padding: 0; }
+      .wrap{ grid-template-columns: 1fr; }
+      .panel{ display: none; }
+      .receipt-wrap{ justify-content: flex-start; }
+      .receipt{
         border: none;
-        width: auto;     /* let printer handle */
         padding: 0;
+        width: auto;  /* let printer handle */
       }
     }
   </style>
 </head>
+
 <body>
+  <div class="wrap">
+    <!-- Controls -->
+    <div class="panel">
+      <h2>Receipt Builder (Dummy Data)</h2>
 
-  <div class="actions">
-    <button onclick="printReceipt()">Print</button>
-  </div>
+      <div class="row">
+        <div>
+          <label>Paper Width</label>
+          <select id="paperWidth">
+            <option value="80mm" selected>80mm</option>
+            <option value="58mm">58mm</option>
+          </select>
+        </div>
+        <div>
+          <label>Date & Time</label>
+          <input id="billDate" placeholder="20/01/2026 12:25 PM"/>
+        </div>
+      </div>
 
-  <div class="receipt mono" id="receipt">
-    <div class="center bold">AVVA SUPER BAZAR</div>
-    <div class="center small">Cash Memo</div>
-    <div class="center small">Daval Malik Road, Near Old Post Office</div>
-    <div class="center small">Phone: 7848921416</div>
+      <div class="row">
+        <div>
+          <label>Shop Name</label>
+          <input id="shopName" value="AVVA SUPER BAZAR"/>
+        </div>
+        <div>
+          <label>Bill No</label>
+          <input id="billNo" value="523"/>
+        </div>
+      </div>
 
-    <div class="line"></div>
+      <label>Shop Address (one line)</label>
+      <input id="shopAddr" value="Daval Malik Road, Near Old Post Office, Anantapur"/>
 
-    <div class="small">Bill No: 523</div>
-    <div class="small">Date: 20/01/2026 12:25 PM</div>
+      <div class="row">
+        <div>
+          <label>Phone</label>
+          <input id="shopPhone" value="7848921416"/>
+        </div>
+        <div>
+          <label>GSTIN (optional)</label>
+          <input id="gstin" value="29DXAPP5437A1ZJ"/>
+        </div>
+      </div>
 
-    <div class="line"></div>
+      <div class="row">
+        <div>
+          <label>Customer Name (optional)</label>
+          <input id="customerName" value="COUNTER-BILL"/>
+        </div>
+        <div>
+          <label>Payment Mode</label>
+          <select id="payMode">
+            <option>Cash</option>
+            <option>UPI</option>
+            <option>Card</option>
+            <option selected>Mixed</option>
+          </select>
+        </div>
+      </div>
 
-    <div class="row small bold">
-      <span>ITEM</span><span>QTY</span><span>AMT</span>
+      <label>Items (JSON) — editable</label>
+      <textarea id="itemsJson"></textarea>
+
+      <div class="row">
+        <div>
+          <label>Discount (₹)</label>
+          <input id="discount" type="number" value="0" />
+        </div>
+        <div>
+          <label>Round Off (₹)</label>
+          <input id="roundOff" type="number" value="0" />
+        </div>
+      </div>
+
+      <div class="btns">
+        <button class="primary" onclick="loadDummy()">Load Dummy</button>
+        <button onclick="render()">Update Preview</button>
+        <button class="primary" onclick="printNow()">Print</button>
+        <button class="danger" onclick="resetAll()">Reset</button>
+      </div>
+
+      <div class="hint">
+        <div><b>Auto-cut note:</b> Browser-only printing can’t force ESC/POS cut. If your Epson driver is set to “cut after job”, it will cut automatically.</div>
+        <div style="margin-top:6px;">Tip: keep item names short for 58mm paper.</div>
+      </div>
     </div>
-    <div class="line"></div>
 
-    <div class="row small"><span>HARPIC 500ML</span><span>1</span><span>104</span></div>
-    <div class="row small"><span>Pani Puri 3D 250gm</span><span>1</span><span>30</span></div>
-    <div class="row small"><span>Kaju 250gm</span><span>0.5</span><span>115</span></div>
-    <div class="row small"><span>Badam 250gm</span><span>0.5</span><span>115</span></div>
-
-    <div class="line"></div>
-
-    <div class="row bold"><span>TOTAL</span><span></span><span>623</span></div>
-    <div class="row small"><span>MRP Total</span><span></span><span>690</span></div>
-    <div class="row small"><span>Saving</span><span></span><span>67</span></div>
-
-    <div class="line"></div>
-
-    <div class="center small">THANK YOU... VISIT AGAIN</div>
-    <div class="center small">HAVE A NICE DAY...</div>
-
-    <div style="height: 12mm;"></div> <!-- bottom gap so cutter has space -->
+    <!-- Receipt Preview -->
+    <div class="receipt-wrap">
+      <div class="receipt" id="receipt"></div>
+    </div>
   </div>
 
   <script>
-    function printReceipt() {
-      // Opens system print dialog
-      window.print();
+    const $ = (id) => document.getElementById(id);
+
+    function nowIndianFormat() {
+      const d = new Date();
+      const pad = (n) => String(n).padStart(2, "0");
+      let hh = d.getHours();
+      const ampm = hh >= 12 ? "PM" : "AM";
+      hh = hh % 12; if (hh === 0) hh = 12;
+      return `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()} ${hh}:${pad(d.getMinutes())} ${ampm}`;
     }
+
+    function defaultItems() {
+      return [
+        { name: "HARPIC 500ML", qty: 1, rate: 104 },
+        { name: "Pani Puri 3D 250gm", qty: 1, rate: 30 },
+        { name: "Kaju 250gm", qty: 0.5, rate: 230 },
+        { name: "Badam 250gm", qty: 0.5, rate: 230 },
+        { name: "Salt 1kg", qty: 1, rate: 10 },
+        { name: "Shabudan 500gm", qty: 1, rate: 30 },
+        { name: "Masala 10rs", qty: 2, rate: 10 },
+        { name: "Moongdal 250gm", qty: 1, rate: 29 },
+        { name: "Khaskaha 20gm", qty: 1, rate: 50 },
+        { name: "Vim Liquid 15rs", qty: 1, rate: 15 }
+      ];
+    }
+
+    function loadDummy() {
+      $("billDate").value = nowIndianFormat();
+      $("paperWidth").value = "80mm";
+      $("shopName").value = "AVVA SUPER BAZAR";
+      $("billNo").value = "523";
+      $("shopAddr").value = "Daval Malik Road, Near Old Post Office, Anantapur";
+      $("shopPhone").value = "7848921416";
+      $("gstin").value = "29DXAPP5437A1ZJ";
+      $("customerName").value = "COUNTER-BILL";
+      $("payMode").value = "Cash";
+      $("discount").value = 0;
+      $("roundOff").value = 0;
+
+      $("itemsJson").value = JSON.stringify(defaultItems(), null, 2);
+      render();
+    }
+
+    function resetAll() {
+      $("shopName").value = "";
+      $("billNo").value = "";
+      $("shopAddr").value = "";
+      $("shopPhone").value = "";
+      $("gstin").value = "";
+      $("billDate").value = "";
+      $("customerName").value = "";
+      $("itemsJson").value = "[]";
+      $("discount").value = 0;
+      $("roundOff").value = 0;
+      render();
+    }
+
+    function safeParseItems() {
+      try {
+        const items = JSON.parse($("itemsJson").value || "[]");
+        if (!Array.isArray(items)) return [];
+        return items
+          .filter(it => it && typeof it.name === "string")
+          .map(it => ({
+            name: it.name.trim(),
+            qty: Number(it.qty || 0),
+            rate: Number(it.rate || 0)
+          }))
+          .filter(it => it.name && it.qty > 0 && it.rate >= 0);
+      } catch (e) {
+        return null; // indicate parse error
+      }
+    }
+
+    function money(n) {
+      // Keep minimal decimals; show .00 if integer
+      const val = Math.round((Number(n) + Number.EPSILON) * 100) / 100;
+      return val.toFixed(val % 1 === 0 ? 0 : 2);
+    }
+
+    function render() {
+      // apply paper width
+      document.documentElement.style.setProperty("--paper", $("paperWidth").value || "80mm");
+
+      const items = safeParseItems();
+      if (items === null) {
+        $("receipt").innerHTML = `
+          <div class="center bold">INVALID ITEMS JSON</div>
+          <div class="line"></div>
+          <div class="small muted">Fix the JSON format in Items box.</div>
+        `;
+        return;
+      }
+
+      const shopName = $("shopName").value.trim() || "SHOP NAME";
+      const shopAddr = $("shopAddr").value.trim() || "";
+      const phone = $("shopPhone").value.trim() || "";
+      const gstin = $("gstin").value.trim() || "";
+      const billNo = $("billNo").value.trim() || "-";
+      const billDate = $("billDate").value.trim() || nowIndianFormat();
+      const customer = $("customerName").value.trim() || "";
+      const payMode = $("payMode").value;
+
+      const discount = Number($("discount").value || 0);
+      const roundOff = Number($("roundOff").value || 0);
+
+      let subtotal = 0;
+      let totalQty = 0;
+
+      const rowsHtml = items.map(it => {
+        const amt = it.qty * it.rate;
+        subtotal += amt;
+        totalQty += it.qty;
+        return `
+          <div class="item-row small">
+            <div class="item-name">${escapeHtml(it.name)}</div>
+            <div class="right">${money(it.qty)}</div>
+            <div class="right">${money(amt)}</div>
+          </div>
+        `;
+      }).join("");
+
+      const total = subtotal - discount + roundOff;
+
+      $("receipt").innerHTML = `
+        <div class="center bold">${escapeHtml(shopName)}</div>
+        <div class="center small muted">CASH MEMO</div>
+        ${shopAddr ? `<div class="center small muted">${escapeHtml(shopAddr)}</div>` : ""}
+        ${phone ? `<div class="center small muted">Phone: ${escapeHtml(phone)}</div>` : ""}
+        ${gstin ? `<div class="center small muted">GSTIN: ${escapeHtml(gstin)}</div>` : ""}
+
+        <div class="line"></div>
+
+        <div class="kv small">
+          <div class="k">Bill No: ${escapeHtml(billNo)}</div>
+          <div class="v">${escapeHtml(billDate)}</div>
+        </div>
+
+        ${customer ? `<div class="small muted">Name: ${escapeHtml(customer)}</div>` : ""}
+        <div class="small muted">Payment: ${escapeHtml(payMode)}</div>
+
+        <div class="line"></div>
+
+        <div class="table-head small">
+          <div>ITEM</div><div class="right">QTY</div><div class="right">AMT</div>
+        </div>
+        <div class="line"></div>
+
+        ${rowsHtml || `<div class="small muted">No items</div>`}
+
+        <div class="line"></div>
+
+        <div class="totals small">
+          <div class="muted">Subtotal</div><div class="right">${money(subtotal)}</div>
+          <div class="muted">Discount</div><div class="right">${money(discount)}</div>
+          <div class="muted">Round Off</div><div class="right">${money(roundOff)}</div>
+          <div class="bold">TOTAL</div><div class="right bold">${money(total)}</div>
+        </div>
+
+        <div class="line"></div>
+
+        <div class="kv small muted">
+          <div>Total Items: ${items.length}</div>
+          <div class="v">Total Qty: ${money(totalQty)}</div>
+        </div>
+
+        <div class="line"></div>
+
+        <div class="center small">THANK YOU... VISIT AGAIN</div>
+        <div class="center small">HAVE A NICE DAY...</div>
+
+        <div class="footer-gap"></div>
+      `;
+    }
+
+    function printNow() {
+      render();       // ensure latest preview
+      window.print(); // open system print
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    // initial load
+    loadDummy();
   </script>
 </body>
 </html>
